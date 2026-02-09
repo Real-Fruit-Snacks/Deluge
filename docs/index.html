@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deluge — Advanced Nmap Parser & Formatter</title>
+  <meta name="description" content="Advanced parser and formatter for Nmap and RustScan outputs. Color-coded terminal reports, multi-format exports, and interactive scanning with Catppuccin styling.">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%9B%A1%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  <style>
+    /* =========================================================
+       DELUGE LANDING PAGE
+       Catppuccin Mocha palette — dark terminal aesthetic
+       ========================================================= */
+
+    *, *::before, *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --ctp-rosewater: #f5e0dc;
+      --ctp-flamingo: #f2cdcd;
+      --ctp-pink: #f5c2e7;
+      --ctp-mauve: #cba6f7;
+      --ctp-red: #f38ba8;
+      --ctp-maroon: #eba0ac;
+      --ctp-peach: #fab387;
+      --ctp-yellow: #f9e2af;
+      --ctp-green: #a6e3a1;
+      --ctp-teal: #94e2d5;
+      --ctp-sky: #89dceb;
+      --ctp-sapphire: #74c7ec;
+      --ctp-blue: #89b4fa;
+      --ctp-lavender: #b4befe;
+      --ctp-text: #cdd6f4;
+      --ctp-subtext1: #bac2de;
+      --ctp-subtext0: #a6adc8;
+      --ctp-overlay2: #9399b2;
+      --ctp-overlay1: #7f849c;
+      --ctp-overlay0: #6c7086;
+      --ctp-surface2: #585b70;
+      --ctp-surface1: #45475a;
+      --ctp-surface0: #313244;
+      --ctp-base: #1e1e2e;
+      --ctp-mantle: #181825;
+      --ctp-crust: #11111b;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      scrollbar-width: thin;
+      scrollbar-color: var(--ctp-surface1) var(--ctp-crust);
+    }
+
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background-color: var(--ctp-crust);
+      color: var(--ctp-text);
+      line-height: 1.7;
+      font-size: 15px;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    /* ---- Dot-grid background pattern ---- */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: radial-gradient(var(--ctp-surface0) 1px, transparent 1px);
+      background-size: 24px 24px;
+      opacity: 0.3;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ---- CRT scanline overlay ---- */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 0, 0, 0.03) 2px,
+        rgba(0, 0, 0, 0.03) 4px
+      );
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    /* ---- Layout ---- */
+    .page-wrap {
+      position: relative;
+      z-index: 1;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    section {
+      margin-bottom: 96px;
+    }
+
+    a {
+      color: var(--ctp-blue);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    a:hover {
+      color: var(--ctp-sapphire);
+    }
+
+    /* ---- Section titles ---- */
+    .section-label {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--ctp-overlay0);
+      border: 1px solid var(--ctp-surface1);
+      padding: 4px 12px;
+      border-radius: 2px;
+      margin-bottom: 20px;
+    }
+
+    .section-title {
+      font-size: clamp(22px, 3vw, 30px);
+      font-weight: 700;
+      color: var(--ctp-text);
+      margin-bottom: 12px;
+      line-height: 1.3;
+    }
+
+    .section-desc {
+      color: var(--ctp-subtext0);
+      font-size: 14px;
+      max-width: 600px;
+      margin-bottom: 40px;
+    }
+
+    /* =========================================================
+       HERO
+       ========================================================= */
+    .hero {
+      padding: 80px 0 48px;
+      text-align: center;
+      margin-bottom: 64px;
+    }
+
+    .hero-terminal {
+      border: 1px solid var(--ctp-surface1);
+      border-radius: 8px;
+      background: var(--ctp-mantle);
+      max-width: 780px;
+      margin: 0 auto;
+      overflow: hidden;
+      box-shadow:
+        0 0 0 1px var(--ctp-surface0),
+        0 24px 80px -12px rgba(0, 0, 0, 0.6),
+        0 0 120px -40px rgba(137, 180, 250, 0.08);
+    }
+
+    .hero-titlebar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      background: var(--ctp-crust);
+      border-bottom: 1px solid var(--ctp-surface0);
+    }
+
+    .hero-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+
+    .hero-dot--red { background: var(--ctp-red); }
+    .hero-dot--yellow { background: var(--ctp-yellow); }
+    .hero-dot--green { background: var(--ctp-green); }
+
+    .hero-titlebar-text {
+      flex: 1;
+      text-align: center;
+      font-size: 12px;
+      color: var(--ctp-overlay0);
+      letter-spacing: 0.05em;
+    }
+
+    .hero-body {
+      padding: 48px 40px 56px;
+    }
+
+    .hero-prompt {
+      font-size: 13px;
+      color: var(--ctp-overlay0);
+      margin-bottom: 24px;
+      letter-spacing: 0.02em;
+    }
+
+    .hero-prompt .prompt-symbol {
+      color: var(--ctp-green);
+    }
+
+    .hero-prompt .prompt-path {
+      color: var(--ctp-blue);
+    }
+
+    .hero-title {
+      font-size: clamp(42px, 7vw, 72px);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1.05;
+      margin-bottom: 8px;
+      background: linear-gradient(
+        135deg,
+        var(--ctp-sky) 0%,
+        var(--ctp-mauve) 25%,
+        var(--ctp-peach) 50%,
+        var(--ctp-green) 75%,
+        var(--ctp-blue) 100%
+      );
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      filter: drop-shadow(0 0 40px rgba(137, 180, 250, 0.2));
+    }
+
+    .hero-cursor {
+      display: inline-block;
+      width: 3px;
+      height: 0.8em;
+      background: var(--ctp-green);
+      margin-left: 4px;
+      vertical-align: baseline;
+      animation: blink 1s step-end infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    .hero-tagline {
+      font-size: clamp(14px, 2vw, 17px);
+      color: var(--ctp-subtext0);
+      margin-bottom: 36px;
+      font-weight: 400;
+      line-height: 1.6;
+    }
+
+    .hero-tagline em {
+      color: var(--ctp-subtext1);
+      font-style: normal;
+    }
+
+    .hero-buttons {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 28px;
+      border-radius: 4px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background: var(--ctp-blue);
+      color: var(--ctp-crust);
+      border-color: var(--ctp-blue);
+    }
+
+    .btn-primary:hover {
+      background: var(--ctp-sapphire);
+      border-color: var(--ctp-sapphire);
+      color: var(--ctp-crust);
+      box-shadow: 0 0 24px rgba(137, 180, 250, 0.25);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--ctp-subtext1);
+      border-color: var(--ctp-surface1);
+    }
+
+    .btn-ghost:hover {
+      color: var(--ctp-text);
+      border-color: var(--ctp-overlay0);
+      background: var(--ctp-surface0);
+    }
+
+    /* =========================================================
+       FEATURES GRID
+       ========================================================= */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
+    .feature-card {
+      background: var(--ctp-mantle);
+      border: 1px solid var(--ctp-surface0);
+      border-radius: 6px;
+      padding: 28px 24px;
+      transition: all 0.25s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--ctp-blue), transparent);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .feature-card:hover {
+      border-color: var(--ctp-surface1);
+      background: var(--ctp-base);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 32px -8px rgba(0, 0, 0, 0.4);
+    }
+
+    .feature-card:hover::before {
+      opacity: 1;
+    }
+
+    .feature-icon {
+      font-size: 24px;
+      margin-bottom: 16px;
+      display: block;
+      width: 44px;
+      height: 44px;
+      line-height: 44px;
+      text-align: center;
+      background: var(--ctp-surface0);
+      border-radius: 8px;
+      border: 1px solid var(--ctp-surface1);
+    }
+
+    .feature-card h3 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--ctp-text);
+      margin-bottom: 8px;
+    }
+
+    .feature-card p {
+      font-size: 13px;
+      color: var(--ctp-subtext0);
+      line-height: 1.6;
+    }
+
+    /* ---- Unique accent colors per card ---- */
+    .feature-card:nth-child(1):hover { border-color: var(--ctp-sky); }
+    .feature-card:nth-child(1):hover::before { background: linear-gradient(90deg, transparent, var(--ctp-sky), transparent); }
+
+    .feature-card:nth-child(2):hover { border-color: var(--ctp-green); }
+    .feature-card:nth-child(2):hover::before { background: linear-gradient(90deg, transparent, var(--ctp-green), transparent); }
+
+    .feature-card:nth-child(3):hover { border-color: var(--ctp-mauve); }
+    .feature-card:nth-child(3):hover::before { background: linear-gradient(90deg, transparent, var(--ctp-mauve), transparent); }
+
+    .feature-card:nth-child(4):hover { border-color: var(--ctp-peach); }
+    .feature-card:nth-child(4):hover::before { background: linear-gradient(90deg, transparent, var(--ctp-peach), transparent); }
+
+    .feature-card:nth-child(5):hover { border-color: var(--ctp-teal); }
+    .feature-card:nth-child(5):hover::before { background: linear-gradient(90deg, transparent, var(--ctp-teal), transparent); }
+
+    .feature-card:nth-child(6):hover { border-color: var(--ctp-yellow); }
+    .feature-card:nth-child(6):hover::before { background: linear-gradient(90deg, transparent, var(--ctp-yellow), transparent); }
+
+    .feature-card:nth-child(7):hover { border-color: var(--ctp-red); }
+    .feature-card:nth-child(7):hover::before { background: linear-gradient(90deg, transparent, var(--ctp-red), transparent); }
+
+    .feature-card:nth-child(8):hover { border-color: var(--ctp-lavender); }
+    .feature-card:nth-child(8):hover::before { background: linear-gradient(90deg, transparent, var(--ctp-lavender), transparent); }
+
+    /* =========================================================
+       ARCHITECTURE
+       ========================================================= */
+    .arch-terminal {
+      border: 1px solid var(--ctp-surface1);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--ctp-mantle);
+      box-shadow: 0 16px 48px -12px rgba(0, 0, 0, 0.4);
+    }
+
+    .arch-titlebar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      background: var(--ctp-crust);
+      border-bottom: 1px solid var(--ctp-surface0);
+    }
+
+    .arch-titlebar-text {
+      flex: 1;
+      text-align: center;
+      font-size: 12px;
+      color: var(--ctp-overlay0);
+    }
+
+    .arch-body {
+      padding: 32px;
+    }
+
+    .arch-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 24px;
+    }
+
+    .arch-item {
+      padding: 20px;
+      border: 1px solid var(--ctp-surface0);
+      border-radius: 4px;
+      background: var(--ctp-base);
+    }
+
+    .arch-item-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .arch-item-marker {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--ctp-crust);
+      background: var(--ctp-sky);
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+
+    .arch-item:nth-child(2) .arch-item-marker { background: var(--ctp-mauve); }
+    .arch-item:nth-child(3) .arch-item-marker { background: var(--ctp-peach); }
+    .arch-item:nth-child(4) .arch-item-marker { background: var(--ctp-green); }
+
+    .arch-item h3 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--ctp-text);
+    }
+
+    .arch-item p {
+      font-size: 13px;
+      color: var(--ctp-subtext0);
+      line-height: 1.6;
+    }
+
+    .arch-item code {
+      font-size: 12px;
+      color: var(--ctp-mauve);
+      background: var(--ctp-surface0);
+      padding: 1px 6px;
+      border-radius: 3px;
+    }
+
+    .arch-divider {
+      border: none;
+      border-top: 1px dashed var(--ctp-surface1);
+      margin: 28px 0;
+    }
+
+    .arch-stack {
+      font-size: 13px;
+      color: var(--ctp-subtext0);
+      text-align: center;
+    }
+
+    .arch-stack span {
+      display: inline-block;
+      padding: 4px 14px;
+      border: 1px solid var(--ctp-surface1);
+      border-radius: 3px;
+      margin: 4px;
+      background: var(--ctp-base);
+      color: var(--ctp-subtext1);
+      font-size: 12px;
+    }
+
+    /* =========================================================
+       GETTING STARTED
+       ========================================================= */
+    .start-row {
+      display: flex;
+      gap: 40px;
+      align-items: flex-start;
+    }
+
+    .start-terminal {
+      border: 1px solid var(--ctp-surface1);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--ctp-mantle);
+      box-shadow: 0 16px 48px -12px rgba(0, 0, 0, 0.4);
+      flex: 1;
+      min-width: 0;
+    }
+
+    .start-titlebar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      background: var(--ctp-crust);
+      border-bottom: 1px solid var(--ctp-surface0);
+    }
+
+    .start-titlebar-text {
+      flex: 1;
+      text-align: center;
+      font-size: 12px;
+      color: var(--ctp-overlay0);
+    }
+
+    .start-body {
+      padding: 28px 32px;
+    }
+
+    .start-line {
+      margin-bottom: 4px;
+      font-size: 14px;
+      line-height: 1.8;
+    }
+
+    .start-line .prompt {
+      color: var(--ctp-green);
+      user-select: none;
+    }
+
+    .start-line .cmd {
+      color: var(--ctp-text);
+    }
+
+    .start-line .comment {
+      color: var(--ctp-overlay0);
+    }
+
+    .start-line .flag {
+      color: var(--ctp-peach);
+    }
+
+    .start-line .arg {
+      color: var(--ctp-yellow);
+    }
+
+    .start-line .pipe {
+      color: var(--ctp-overlay2);
+    }
+
+    .start-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .start-info p {
+      font-size: 14px;
+      color: var(--ctp-subtext0);
+      margin-bottom: 12px;
+      line-height: 1.7;
+    }
+
+    .start-info code {
+      font-size: 13px;
+      color: var(--ctp-peach);
+      background: var(--ctp-surface0);
+      padding: 2px 8px;
+      border-radius: 3px;
+      border: 1px solid var(--ctp-surface1);
+    }
+
+    /* =========================================================
+       FOOTER
+       ========================================================= */
+    .site-footer {
+      border-top: 1px solid var(--ctp-surface0);
+      padding: 48px 0;
+      text-align: center;
+      margin-top: 32px;
+    }
+
+    .footer-tagline {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--ctp-subtext1);
+      margin-bottom: 24px;
+      letter-spacing: 0.02em;
+    }
+
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 32px;
+      margin-bottom: 28px;
+      flex-wrap: wrap;
+    }
+
+    .footer-links a {
+      font-size: 13px;
+      color: var(--ctp-overlay1);
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover {
+      color: var(--ctp-blue);
+    }
+
+    .footer-copy {
+      font-size: 12px;
+      color: var(--ctp-overlay0);
+    }
+
+    /* =========================================================
+       RESPONSIVE
+       ========================================================= */
+    @media (max-width: 900px) {
+      .features-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .arch-grid {
+        grid-template-columns: 1fr;
+      }
+      .hero-body {
+        padding: 36px 24px 44px;
+      }
+      .start-row {
+        flex-direction: column;
+        gap: 24px;
+      }
+    }
+
+    @media (max-width: 600px) {
+      body {
+        font-size: 14px;
+      }
+      .page-wrap {
+        padding: 0 16px;
+      }
+      .features-grid {
+        grid-template-columns: 1fr;
+      }
+      section {
+        margin-bottom: 64px;
+      }
+      .hero {
+        padding: 48px 0 32px;
+      }
+      .hero-body {
+        padding: 28px 20px 36px;
+      }
+      .hero-buttons {
+        flex-direction: column;
+        align-items: center;
+      }
+      .btn {
+        width: 100%;
+        max-width: 260px;
+        justify-content: center;
+      }
+      .arch-body {
+        padding: 20px;
+      }
+      .start-body {
+        padding: 20px;
+      }
+      .start-line {
+        font-size: 12px;
+      }
+      .feature-card {
+        padding: 22px 20px;
+      }
+    }
+
+    /* ---- Selection highlight ---- */
+    ::selection {
+      background: rgba(137, 180, 250, 0.25);
+      color: var(--ctp-text);
+    }
+
+    /* ---- Focus styles for accessibility ---- */
+    a:focus-visible,
+    .btn:focus-visible {
+      outline: 2px solid var(--ctp-blue);
+      outline-offset: 2px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="page-wrap">
+
+  <!-- ============ HERO ============ -->
+  <section class="hero" id="top">
+    <div class="hero-terminal">
+      <div class="hero-titlebar">
+        <span class="hero-dot hero-dot--red"></span>
+        <span class="hero-dot hero-dot--yellow"></span>
+        <span class="hero-dot hero-dot--green"></span>
+        <span class="hero-titlebar-text">deluge -- nmap parser &amp; formatter</span>
+      </div>
+      <div class="hero-body">
+        <h1 class="hero-title">Deluge<span class="hero-cursor" aria-hidden="true"></span></h1>
+        <p class="hero-tagline">
+          Advanced <em>parser &amp; formatter</em> for Nmap<br>
+          and RustScan outputs
+        </p>
+        <div class="hero-buttons">
+          <a href="#getting-started" class="btn btn-primary">Get Started</a>
+          <a href="https://github.com/Real-Fruit-Snacks/Deluge" class="btn btn-ghost">View on GitHub</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ FEATURES ============ -->
+  <section id="features">
+    <span class="section-label">// capabilities</span>
+    <h2 class="section-title">Parse once. See everything.</h2>
+    <p class="section-desc">
+      A focused transformation layer that sits between your scanning tools and your analysis workflow. Pipe in raw output, get structured results.
+    </p>
+
+    <div class="features-grid">
+      <div class="feature-card">
+        <span class="feature-icon" aria-hidden="true">&#9654;</span>
+        <h3>Interactive Mode</h3>
+        <p>Pipe RustScan output with Nmap flags and Deluge auto-detects interactive mode -- spawning concurrent scans per discovered port with live progress.</p>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon" aria-hidden="true">&#9881;</span>
+        <h3>Intelligent Parsing</h3>
+        <p>Factory-pattern parser registry auto-detects Nmap XML, Nmap stdout, and RustScan formats. Hand it any supported input and it figures out the rest.</p>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon" aria-hidden="true">&#8644;</span>
+        <h3>Multi-Format Export</h3>
+        <p>Generate JSON, CSV, HTML, XML, and TXT reports from a single scan. Use <code style="font-size:12px;color:var(--ctp-mauve);background:var(--ctp-surface0);padding:1px 5px;border-radius:3px;">--export-format all</code> to get everything at once.</p>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon" aria-hidden="true">&#9608;</span>
+        <h3>Catppuccin Terminal UI</h3>
+        <p>Rich-powered tables, panels, and progress bars styled with the Catppuccin Mocha palette. Color-coded ports, services, OS info, and script results.</p>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon" aria-hidden="true">&#9888;</span>
+        <h3>Safety Checks</h3>
+        <p>Prerequisite detection for Nmap with OS-specific install instructions. Privilege warnings for scans requiring root. Rich-formatted error messages.</p>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon" aria-hidden="true">&#8693;</span>
+        <h3>Concurrent Scanning</h3>
+        <p>Interactive mode runs configurable worker threads that execute targeted Nmap scans in parallel. Results merge under a thread lock for safe access.</p>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon" aria-hidden="true">&#9673;</span>
+        <h3>OS &amp; Script Detection</h3>
+        <p>Full OS detection with match accuracy, traceroute hops with RTT, and NSE script output parsed and formatted per port with structured panels.</p>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon" aria-hidden="true">&#9776;</span>
+        <h3>Timestamped Exports</h3>
+        <p>Exports land in timestamped subdirectories that prevent overwrites. Interactive mode also saves per-port XML files organized by IP address.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ARCHITECTURE ============ -->
+  <section id="architecture">
+    <span class="section-label">// architecture</span>
+    <h2 class="section-title">Three layers. One data flow.</h2>
+    <p class="section-desc">
+      Input is parsed into a Pydantic model, then rendered to terminal or exported to files. No framework, no build step, just a pip-installable CLI.
+    </p>
+
+    <div class="arch-terminal">
+      <div class="arch-titlebar">
+        <span class="hero-dot hero-dot--red"></span>
+        <span class="hero-dot hero-dot--yellow"></span>
+        <span class="hero-dot hero-dot--green"></span>
+        <span class="arch-titlebar-text">system architecture</span>
+      </div>
+      <div class="arch-body">
+        <div class="arch-grid">
+          <div class="arch-item">
+            <div class="arch-item-header">
+              <span class="arch-item-marker">01</span>
+              <h3>Factory Pattern Parsers</h3>
+            </div>
+            <p>
+              Self-registering parsers via <code>@ParserFactory.register</code> decorator. Registration order sets priority -- <code>nmap_xml</code> first, then <code>nmap_stdout</code>, then <code>rustscan</code>.
+            </p>
+          </div>
+
+          <div class="arch-item">
+            <div class="arch-item-header">
+              <span class="arch-item-marker">02</span>
+              <h3>Pydantic v2 Models</h3>
+            </div>
+            <p>
+              Strict validation with <code>ScanResult</code> &rarr; <code>HostInfo</code> &rarr; <code>PortInfo</code> hierarchy. Type safety throughout, automatic serialization for all export formats.
+            </p>
+          </div>
+
+          <div class="arch-item">
+            <div class="arch-item-header">
+              <span class="arch-item-marker">03</span>
+              <h3>Rich Terminal UI</h3>
+            </div>
+            <p>
+              All output through Rich -- tables, panels, progress bars, and <code>Live</code> displays. Catppuccin Mocha hex constants. Smart TTY detection for clean piped output.
+            </p>
+          </div>
+
+          <div class="arch-item">
+            <div class="arch-item-header">
+              <span class="arch-item-marker">04</span>
+              <h3>Thread-Safe Engine</h3>
+            </div>
+            <p>
+              Interactive mode reads RustScan stdin in one thread, spawns worker threads for targeted Nmap scans, and merges results via <code>threading.Lock</code> for safe concurrent access.
+            </p>
+          </div>
+        </div>
+
+        <hr class="arch-divider">
+
+        <div class="arch-stack">
+          <span>Python 3.8+</span>
+          <span>Pydantic v2</span>
+          <span>Rich</span>
+          <span>lxml</span>
+          <span>ruff</span>
+          <span>pytest</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ GETTING STARTED ============ -->
+  <section id="getting-started">
+    <span class="section-label">// quickstart</span>
+    <h2 class="section-title">Pipe in scans. Get beautiful output.</h2>
+    <p class="section-desc">
+      Install with pipx, pipe in your scan data, and let Deluge handle the formatting. No configuration needed.
+    </p>
+
+    <div class="start-row">
+      <div class="start-terminal">
+        <div class="start-titlebar">
+          <span class="hero-dot hero-dot--red"></span>
+          <span class="hero-dot hero-dot--yellow"></span>
+          <span class="hero-dot hero-dot--green"></span>
+          <span class="start-titlebar-text">bash</span>
+        </div>
+        <div class="start-body">
+          <div class="start-line">
+            <span class="comment"># Install globally with pipx</span>
+          </div>
+          <div class="start-line" style="margin-bottom:16px;">
+            <span class="prompt">$</span> <span class="cmd">pipx install</span> <span class="arg">git+https://github.com/Real-Fruit-Snacks/Deluge.git</span>
+          </div>
+          <div class="start-line">
+            <span class="comment"># Interactive mode (auto-detected from -sV)</span>
+          </div>
+          <div class="start-line" style="margin-bottom:16px;">
+            <span class="prompt">$</span> <span class="cmd">rustscan</span> <span class="flag">-a</span> <span class="arg">192.168.1.0/24</span> <span class="pipe">|</span> <span class="cmd">deluge</span> <span class="flag">-sV</span>
+          </div>
+          <div class="start-line">
+            <span class="comment"># Parse an existing Nmap XML file</span>
+          </div>
+          <div class="start-line" style="margin-bottom:16px;">
+            <span class="prompt">$</span> <span class="cmd">deluge</span> <span class="flag">--file</span> <span class="arg">scan.xml</span>
+          </div>
+          <div class="start-line">
+            <span class="comment"># Full scan with all export formats</span>
+          </div>
+          <div class="start-line">
+            <span class="prompt">$</span> <span class="cmd">rustscan</span> <span class="flag">-a</span> <span class="arg">targets.txt</span> <span class="pipe">|</span> <span class="cmd">deluge</span> <span class="flag">-A</span> <span class="flag">--export-format</span> <span class="arg">all</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="start-info">
+      <p>
+        Deluge is a <strong style="color:var(--ctp-text);">transformation layer</strong>, not a wrapper. It doesn't execute scans -- it makes existing scan outputs infinitely better.
+      </p>
+      <p>
+        Interactive mode is <strong style="color:var(--ctp-text);">automatic</strong> -- when Deluge detects Nmap arguments on stdin, it switches from simple parsing to concurrent targeted scanning with live progress bars. No flag needed.
+      </p>
+      <p>
+        Export to <code>json</code>, <code>csv</code>, <code>html</code>, <code>xml</code>, or <code>txt</code> with a single flag. Outputs land in timestamped subdirectories.
+      </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ FOOTER ============ -->
+  <footer class="site-footer">
+    <p class="footer-tagline">Parser, not a wrapper. Pipe in scans, get beautiful output.</p>
+    <nav class="footer-links" aria-label="Footer links">
+      <a href="https://github.com/Real-Fruit-Snacks/Deluge">GitHub</a>
+      <a href="https://github.com/Real-Fruit-Snacks/Deluge/blob/main/LICENSE">License (MIT)</a>
+      <a href="https://github.com/Real-Fruit-Snacks/Deluge/issues">Report Issue</a>
+    </nav>
+    <p class="footer-copy">Deluge -- advanced nmap parser &amp; formatter</p>
+  </footer>
+
+</div>
+
+</body>
+</html>
