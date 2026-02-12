@@ -75,6 +75,20 @@ Interactive mode runs configurable worker threads that execute targeted Nmap sca
 
 </td>
 </tr>
+<tr>
+<td width="50%">
+
+### HackTricks Integration
+For every open service discovered, Deluge automatically provides a direct link to the relevant HackTricks enumeration guide — covering 40+ services from FTP and SSH to Redis and MongoDB.
+
+</td>
+<td width="50%">
+
+### Domain & Identity Extraction
+Automatically extracts and displays domain names, SSL certificate CNs/SANs, NetBIOS names, and AD forest information from host scripts and service data.
+
+</td>
+</tr>
 </table>
 
 ---
@@ -253,6 +267,7 @@ No framework. No build step. Just a pip-installable CLI.
 | **TTY detection** | Clean output when piped (no formatting artifacts) |
 | **Timestamped exports** | `scan_YYYYMMDD_HHMMSS/` subdirectories prevent overwrites |
 | **Per-port XML export** | Interactive mode saves individual Nmap XML per IP/port |
+| **HackTricks links** | Automatic enumeration guide URLs for 40+ services (port and service-name matching with deduplication) |
 
 ---
 

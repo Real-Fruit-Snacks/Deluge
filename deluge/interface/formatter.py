@@ -19,11 +19,176 @@ from deluge.core.models import ScanResult, HostInfo, PortInfo, ScriptResult
 # Base      #1e1e2e | Mantle   #181825 | Crust    #11111b
 
 
+# HackTricks enumeration resource mappings
+HACKTRICKS_PORT_MAP = {
+    21: ("FTP", "pentesting-ftp/index.html"),
+    22: ("SSH", "pentesting-ssh.html"),
+    23: ("Telnet", "pentesting-telnet.html"),
+    25: ("SMTP", "pentesting-smtp/index.html"),
+    53: ("DNS", "pentesting-dns.html"),
+    80: ("Web", "pentesting-web/index.html"),
+    88: ("Kerberos", "pentesting-kerberos-88/index.html"),
+    110: ("POP3", "pentesting-pop.html"),
+    111: ("RPCBind", "pentesting-rpcbind.html"),
+    113: ("Ident", "113-pentesting-ident.html"),
+    135: ("MSRPC", "135-pentesting-msrpc.html"),
+    139: ("SMB/NetBIOS", "pentesting-smb/index.html"),
+    143: ("IMAP", "pentesting-imap.html"),
+    161: ("SNMP", "pentesting-snmp/index.html"),
+    162: ("SNMP Trap", "pentesting-snmp/index.html"),
+    389: ("LDAP", "pentesting-ldap.html"),
+    443: ("HTTPS/Web", "pentesting-web/index.html"),
+    445: ("SMB", "pentesting-smb/index.html"),
+    465: ("SMTPS", "pentesting-smtp/index.html"),
+    587: ("SMTP Submission", "pentesting-smtp/index.html"),
+    593: ("MSRPC over HTTP", "135-pentesting-msrpc.html"),
+    636: ("LDAPS", "pentesting-ldap.html"),
+    873: ("Rsync", "873-pentesting-rsync.html"),
+    993: ("IMAPS", "pentesting-imap.html"),
+    995: ("POP3S", "pentesting-pop.html"),
+    1080: ("SOCKS", "1080-pentesting-socks.html"),
+    1433: ("MSSQL", "pentesting-mssql-microsoft-sql-server/index.html"),
+    1521: ("Oracle TNS", "1521-1522-1529-pentesting-oracle-listener.html"),
+    2049: ("NFS", "nfs-service-pentesting.html"),
+    2375: ("Docker", "2375-pentesting-docker.html"),
+    2376: ("Docker TLS", "2375-pentesting-docker.html"),
+    3268: ("LDAP GC", "pentesting-ldap.html"),
+    3269: ("LDAPS GC", "pentesting-ldap.html"),
+    3306: ("MySQL", "pentesting-mysql.html"),
+    3389: ("RDP", "pentesting-rdp.html"),
+    5432: ("PostgreSQL", "pentesting-postgresql.html"),
+    5601: ("Kibana", "5601-pentesting-kibana.html"),
+    5800: ("VNC HTTP", "pentesting-vnc.html"),
+    5900: ("VNC", "pentesting-vnc.html"),
+    5985: ("WinRM HTTP", "5985-5986-pentesting-winrm.html"),
+    5986: ("WinRM HTTPS", "5985-5986-pentesting-winrm.html"),
+    6379: ("Redis", "6379-pentesting-redis.html"),
+    8009: ("AJP", "8009-pentesting-apache-jserv-protocol-ajp.html"),
+    8080: ("HTTP Proxy/Web", "pentesting-web/index.html"),
+    8443: ("HTTPS Alt", "pentesting-web/index.html"),
+    9042: ("Cassandra", "cassandra.html"),
+    9160: ("Cassandra Thrift", "cassandra.html"),
+    9200: ("Elasticsearch", "9200-pentesting-elasticsearch.html"),
+    27017: ("MongoDB", "27017-27018-mongodb.html"),
+    27018: ("MongoDB", "27017-27018-mongodb.html"),
+}
+
+HACKTRICKS_SERVICE_MAP = {
+    "ftp": "pentesting-ftp/index.html",
+    "ssh": "pentesting-ssh.html",
+    "telnet": "pentesting-telnet.html",
+    "smtp": "pentesting-smtp/index.html",
+    "domain": "pentesting-dns.html",
+    "dns": "pentesting-dns.html",
+    "http": "pentesting-web/index.html",
+    "https": "pentesting-web/index.html",
+    "http-proxy": "pentesting-web/index.html",
+    "kerberos": "pentesting-kerberos-88/index.html",
+    "pop3": "pentesting-pop.html",
+    "sunrpc": "pentesting-rpcbind.html",
+    "rpcbind": "pentesting-rpcbind.html",
+    "ident": "113-pentesting-ident.html",
+    "msrpc": "135-pentesting-msrpc.html",
+    "netbios-ssn": "pentesting-smb/index.html",
+    "imap": "pentesting-imap.html",
+    "snmp": "pentesting-snmp/index.html",
+    "ldap": "pentesting-ldap.html",
+    "microsoft-ds": "pentesting-smb/index.html",
+    "smtps": "pentesting-smtp/index.html",
+    "submission": "pentesting-smtp/index.html",
+    "imaps": "pentesting-imap.html",
+    "pop3s": "pentesting-pop.html",
+    "socks": "1080-pentesting-socks.html",
+    "ms-sql-s": "pentesting-mssql-microsoft-sql-server/index.html",
+    "mssql": "pentesting-mssql-microsoft-sql-server/index.html",
+    "oracle": "1521-1522-1529-pentesting-oracle-listener.html",
+    "nfs": "nfs-service-pentesting.html",
+    "docker": "2375-pentesting-docker.html",
+    "mysql": "pentesting-mysql.html",
+    "ms-wbt-server": "pentesting-rdp.html",
+    "rdp": "pentesting-rdp.html",
+    "postgresql": "pentesting-postgresql.html",
+    "vnc": "pentesting-vnc.html",
+    "winrm": "5985-5986-pentesting-winrm.html",
+    "redis": "6379-pentesting-redis.html",
+    "ajp13": "8009-pentesting-apache-jserv-protocol-ajp.html",
+    "cassandra": "cassandra.html",
+    "elasticsearch": "9200-pentesting-elasticsearch.html",
+    "mongod": "27017-27018-mongodb.html",
+    "mongodb": "27017-27018-mongodb.html",
+    "rsync": "873-pentesting-rsync.html",
+    "kibana": "5601-pentesting-kibana.html",
+}
+
+
 class NmapFormatter:
     def __init__(self):
         # Force UTF-8 encoding for Windows compatibility with Unicode box characters
         self.console = Console(force_terminal=True, legacy_windows=False)
 
+
+    def _get_hacktricks_url(self, port: PortInfo) -> Optional[tuple[str, str]]:
+        """Returns (service_label, full_url) for a port if a HackTricks page exists."""
+        base = "https://book.hacktricks.wiki/en/network-services-pentesting/"
+
+        # Try port number first (most reliable)
+        if port.portid in HACKTRICKS_PORT_MAP:
+            label, path = HACKTRICKS_PORT_MAP[port.portid]
+            return (label, base + path)
+
+        # Fall back to service name
+        svc = (port.service_name or "").lower().strip()
+        if svc in HACKTRICKS_SERVICE_MAP:
+            return (svc.upper(), base + HACKTRICKS_SERVICE_MAP[svc])
+
+        return None
+
+    def _format_hacktricks_references(self, host: HostInfo, wrapped: bool = True) -> Optional[Table]:
+        """Formats HackTricks enumeration reference links for open services."""
+        references = []
+        seen_urls = set()  # Deduplicate (e.g., 139 and 445 both map to SMB)
+
+        for port in sorted(host.ports, key=lambda p: p.portid):
+            if port.state != "open":
+                continue
+            result = self._get_hacktricks_url(port)
+            if result and result[1] not in seen_urls:
+                seen_urls.add(result[1])
+                references.append((port.portid, port.protocol, result[0], result[1]))
+
+        if not references:
+            return None
+
+        table = Table(
+            show_header=True,
+            header_style="bold #fab387",
+            box=box.SIMPLE,
+            title="Enumeration Resources",
+            title_style="bold #fab387",
+        )
+        table.add_column("Port", style="#89dceb", width=10)
+        table.add_column("Service", style="#a6e3a1", width=20)
+        table.add_column("HackTricks Reference", style="#74c7ec")
+
+        for portid, protocol, label, url in references:
+            table.add_row(
+                f"{portid}/{protocol}",
+                label,
+                url,
+            )
+
+        if not wrapped:
+            return table
+
+        self.console.print(
+            Panel(
+                table,
+                title="[bold #fab387]HackTricks Enumeration Guides[/]",
+                border_style="#fab387",
+                padding=(1, 2),
+            )
+        )
+        return None
 
     def display_warning(self, message: str) -> None:
         """Display warning messages in a Rich Panel with yellow border."""
@@ -112,6 +277,7 @@ class NmapFormatter:
         for host in result.hosts:
             self._format_target_header(host)
             self._format_ports_table(host)
+            self._format_hacktricks_references(host)
 
             # Domain information section
             domain_panel = self._format_domain_info(host)
@@ -246,6 +412,12 @@ class NmapFormatter:
                 ports_table = self._format_ports_table(host, wrapped=False)
                 if ports_table:
                     target_content.append(ports_table)
+
+            # 2.5 HackTricks enumeration references
+            hacktricks = self._format_hacktricks_references(host, wrapped=False)
+            if hacktricks:
+                target_content.append(Text(""))  # Spacer
+                target_content.append(hacktricks)
 
             # 3. Domain information section
             domain_info = self._format_domain_info(host, color=color, wrapped=False)
